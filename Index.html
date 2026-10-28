@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<title>CardScan – สแกนนามบัตร</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{
+  --bg:#f3f6f8;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e2e8f0;
+  --primary:#0f766e;--primary-d:#115e59;--accent:#f59e0b;--danger:#dc2626;
+  --radius:16px;--shadow:0 4px 20px rgba(15,23,42,.07);
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#0b1220;--card:#131c2e;--ink:#e8eef7;--muted:#93a3b8;--line:#243049;--shadow:0 4px 20px rgba(0,0,0,.35)}
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Noto Sans Thai',system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh;
+  padding-bottom:env(safe-area-inset-bottom)}
+header{background:linear-gradient(135deg,var(--primary),#0e7490);color:#fff;padding:18px 16px 56px}
+.wrap{max-width:920px;margin:0 auto;padding:0 16px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:920px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px}
+.brand .logo{width:38px;height:38px;border-radius:11px;background:rgba(255,255,255,.18);display:grid;place-items:center;font-size:20px}
+.icon-btn{background:rgba(255,255,255,.16);border:0;color:#fff;border-radius:10px;padding:8px 12px;font:inherit;cursor:pointer}
+.icon-btn:hover{background:rgba(255,255,255,.26)}
+main{margin-top:-40px}
+.tabs{display:flex;gap:6px;background:var(--card);padding:6px;border-radius:14px;box-shadow:var(--shadow);margin-bottom:16px}
+.tab{flex:1;border:0;background:transparent;padding:11px;border-radius:10px;font:inherit;font-weight:600;color:var(--muted);cursor:pointer}
+.tab.active{background:var(--primary);color:#fff}
+.panel{display:none}.panel.active{display:block}
+.card{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:16px}
+.drop{border:2px dashed var(--line);border-radius:var(--radius);padding:28px 16px;text-align:center;transition:.2s}
+.drop.over{border-color:var(--primary);background:rgba(15,118,110,.06)}
+.drop .big{font-size:44px}
+.drop p{color:var(--muted);margin:6px 0 16px}
+.btns{display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+.btn{border:0;border-radius:12px;padding:12px 18px;font:inherit;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:8px;transition:.15s}
+.btn.primary{background:var(--primary);color:#fff}.btn.primary:hover{background:var(--primary-d)}
+.btn.ghost{background:transparent;border:1.5px solid var(--line);color:var(--ink)}.btn.ghost:hover{border-color:var(--primary);color:var(--primary)}
+.btn.warn{background:var(--accent);color:#1f1300}
+.btn.danger{background:transparent;color:var(--danger);border:1.5px solid var(--line);padding:8px 12px;font-size:14px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.preview{display:none;gap:16px;grid-template-columns:1fr;margin-bottom:6px}
+.preview img{width:100%;max-height:260px;object-fit:contain;border-radius:12px;background:#000}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:10px;display:none}
+.bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--primary),var(--accent));transition:width .2s}
+.status{color:var(--muted);font-size:14px;margin-top:8px;min-height:20px}
+.grid{display:grid;grid-template-columns:1fr;gap:12px}
+@media(min-width:640px){.grid{grid-template-columns:1fr 1fr}.grid .full{grid-column:1/-1}.preview{grid-template-columns:1fr 1fr}}
+label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px;font-weight:500}
+input,textarea{width:100%;font:inherit;color:var(--ink);background:transparent;border:1.5px solid var(--line);border-radius:10px;padding:10px 12px;outline:none}
+input:focus,textarea:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(15,118,110,.15)}
+textarea{resize:vertical;min-height:64px}
+.toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:14px}
+.toolbar input{flex:1;min-width:180px}
+.count{color:var(--muted);font-size:14px}
+.list{display:grid;gap:12px}
+.item{background:var(--card);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;display:grid;gap:6px}
+.item h3{margin:0;font-size:17px}
+.item .co{color:var(--primary);font-weight:600}
+.item .meta{color:var(--muted);font-size:14px;display:flex;flex-wrap:wrap;gap:4px 14px}
+.item a{color:inherit}
+.item .row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px}
+.chip{font-size:12px;background:rgba(15,118,110,.12);color:var(--primary);padding:3px 9px;border-radius:99px}
+.empty{text-align:center;color:var(--muted);padding:40px 10px}
+.banner{background:#fef3c7;color:#78350f;border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px;display:none}
+.modal{position:fixed;inset:0;background:rgba(2,6,23,.55);display:none;place-items:center;padding:16px;z-index:20}
+.modal.show{display:grid}
+.modal .box{background:var(--card);border-radius:var(--radius);padding:22px;width:100%;max-width:420px}
+.modal h2{margin:0 0 4px}
+.modal p{color:var(--muted);margin:0 0 14px;font-size:14px}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(120px);background:#0f172a;color:#fff;padding:12px 18px;border-radius:12px;transition:.3s;z-index:30;max-width:90vw}
+.toast.show{transform:translateX(-50%) translateY(0)}
+footer{text-align:center;color:var(--muted);font-size:12px;padding:20px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="top">
+    <div class="brand"><div class="logo">🪪</div> CardScan</div>
+    <button class="icon-btn" id="btnSettings">⚙️ ตั้งค่า</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="banner" id="cfgBanner">⚠️ ยังไม่ได้ใส่ลิงก์ Apps Script ในไฟล์ index.html (ค่า API_URL) — ดูขั้นตอนในคู่มือ</div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="scan">📷 สแกนนามบัตร</button>
+    <button class="tab" data-tab="list">📇 รายชื่อทั้งหมด</button>
+  </div>
+
+  <!-- SCAN -->
+  <section class="panel active" id="panel-scan">
+    <div class="card">
+      <div class="drop" id="drop">
+        <div class="big">🪪</div>
+        <p>ถ่ายรูปนามบัตร หรือเลือกรูป / ลากไฟล์มาวางที่นี่</p>
+        <div class="btns">
+          <button class="btn primary" id="btnCam">📷 ถ่ายรูป</button>
+          <button class="btn ghost" id="btnPick">🖼️ เลือกรูปจากเครื่อง</button>
+        </div>
+        <input type="file" id="fileCam" accept="image/*" capture="environment" hidden>
+        <input type="file" id="filePick" accept="image/*" hidden>
+      </div>
+      <div class="bar" id="bar"><i id="barFill"></i></div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="card" id="formCard" style="display:none">
+      <div class="preview" id="preview"><img id="previewImg" alt="นามบัตร"></div>
+      <p class="count" style="margin:8px 0 14px">ตรวจสอบ/แก้ไขข้อมูลให้ถูกต้องก่อนกดบันทึก</p>
+      <div class="grid">
+        <div><label>ชื่อ-นามสกุล</label><input id="f_name"></div>
+        <div><label>ตำแหน่ง</label><input id="f_title"></div>
+        <div class="full"><label>บริษัท</label><input id="f_company"></div>
+        <div><label>เบอร์โทร</label><input id="f_phone" inputmode="tel"></div>
+        <div><label>มือถือ</label><input id="f_mobile" inputmode="tel"></div>
+        <div><label>อีเมล</label><input id="f_email" inputmode="email"></div>
+        <div><label>เว็บไซต์</label><input id="f_website"></div>
+        <div class="full"><label>ที่อยู่</label><textarea id="f_address"></textarea></div>
+        <div class="full"><label>หมายเหตุ (เช่น งานที่เจอ, สินค้าที่สนใจ)</label><textarea id="f_note"></textarea></div>
+      </div>
+      <div class="btns" style="margin-top:16px;justify-content:flex-end">
+        <button class="btn ghost" id="btnReset">ล้างข้อมูล</button>
+        <button class="btn primary" id="btnSave">💾 บันทึกลง Google Sheet</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIST -->
+  <section class="panel" id="panel-list">
+    <div class="toolbar">
+      <input id="search" placeholder="ค้นหา ชื่อ / บริษัท / อีเมล / เบอร์โทร">
+      <button class="btn ghost" id="btnRefresh">🔄 รีเฟรช</button>
+      <button class="btn warn" id="btnExport">⬇️ Export Excel</button>
+      <button class="btn ghost" id="btnSheet">📄 เปิด Google Sheet</button>
+    </div>
+    <div class="count" id="count" style="margin-bottom:10px"></div>
+    <div class="list" id="list"></div>
+  </section>
+</main>
+
+<footer>CardScan • OCR ทำงานในเบราว์เซอร์ของคุณ • ข้อมูลเก็บใน Google Drive ของเจ้าของระบบ</footer>
+
+<!-- SETTINGS -->
+<div class="modal" id="modal">
+  <div class="box">
+    <h2>ตั้งค่าการใช้งาน</h2>
+    <p>กรอกครั้งเดียว ระบบจะจำไว้ในเครื่องนี้</p>
+    <div style="margin-bottom:12px"><label>รหัสผ่านทีม (Passcode)</label><input id="s_code" type="password" autocomplete="off"></div>
+    <div style="margin-bottom:16px"><label>ชื่อผู้สแกน (บันทึกในชีตว่าใครสแกน)</label><input id="s_name"></div>
+    <div class="btns" style="justify-content:flex-end">
+      <button class="btn ghost" id="s_cancel">ปิด</button>
+      <button class="btn primary" id="s_save">บันทึก</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============ ตั้งค่าที่ต้องแก้ (จุดเดียว) ============ */
+const API_URL = 'https://script.google.com/macros/s/AKfycbzdZzWu3Oh3NabEEtbWaaI6KcMzmlpSMuXjIoZB06i6BnTVHHQRWYht6e1Di20Q8q3J/exec';  // ลิงก์ Web app ที่ได้จาก Apps Script (ลงท้ายด้วย /exec)
+/* ===================================================== */
+
+const $ = s => document.querySelector(s);
+const store = {
+  get(k){ try{ return localStorage.getItem(k) || ''; }catch(e){ return ''; } },
+  set(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
+};
+const state = { ocrImg:null, saveImg:null, rows:[], sheetUrl:'' };
+const FIELDS = ['name','title','company','phone','mobile','email','website','address','note'];
+
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),3200); }
+function esc(s){ return String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+const configured = () => API_URL && !API_URL.startsWith('PASTE_');
+
+/* ---------- Tabs ---------- */
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+b.dataset.tab));
+  if(b.dataset.tab==='list') loadList();
+});
+
+/* ---------- Settings ---------- */
+function openSettings(){ $('#s_code').value=store.get('cs_code'); $('#s_name').value=store.get('cs_name'); $('#modal').classList.add('show'); }
+$('#btnSettings').onclick=openSettings;
+$('#s_cancel').onclick=()=>$('#modal').classList.remove('show');
+$('#s_save').onclick=()=>{ store.set('cs_code',$('#s_code').value.trim()); store.set('cs_name',$('#s_name').value.trim()); $('#modal').classList.remove('show'); toast('บันทึกการตั้งค่าแล้ว'); };
+
+/* ---------- Image handling ---------- */
+function loadImg(file){
+  return new Promise((res,rej)=>{
+    const url=URL.createObjectURL(file), im=new Image();
+    im.onload=()=>res(im); im.onerror=rej; im.src=url;
+  });
+}
+function resize(im,maxSide,q,gray){
+  const r=Math.min(1,maxSide/Math.max(im.naturalWidth,im.naturalHeight));
+  const c=document.createElement('canvas');
+  c.width=Math.round(im.naturalWidth*r); c.height=Math.round(im.naturalHeight*r);
+  const x=c.getContext('2d');
+  if(gray) x.filter='grayscale(1) contrast(1.25)';
+  x.drawImage(im,0,0,c.width,c.height);
+  return c.toDataURL('image/jpeg',q);
+}
+
+$('#btnCam').onclick=()=>$('#fileCam').click();
+$('#btnPick').onclick=()=>$('#filePick').click();
+$('#fileCam').onchange=e=>e.target.files[0]&&handleFile(e.target.files[0]);
+$('#filePick').onchange=e=>e.target.files[0]&&handleFile(e.target.files[0]);
+const drop=$('#drop');
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f&&f.type.startsWith('image/')) handleFile(f); });
+
+async function handleFile(file){
+  resetForm(true);
+  const bar=$('#bar'), fill=$('#barFill'), st=$('#status');
+  try{
+    const im=await loadImg(file);
+    state.ocrImg=resize(im,1800,.92,true);
+    state.saveImg=resize(im,1100,.7,false);
+    $('#previewImg').src=state.saveImg;
+    $('#formCard').style.display='block'; $('#preview').style.display='grid';
+    bar.style.display='block'; fill.style.width='3%';
+    st.textContent='กำลังอ่านข้อความ... (ครั้งแรกอาจใช้เวลาโหลดภาษาไทย 10–30 วินาที)';
+    const { data } = await Tesseract.recognize(state.ocrImg,'tha+eng',{
+      logger:m=>{ if(m.status==='recognizing text') fill.style.width=(10+m.progress*90)+'%'; }
+    });
+    fill.style.width='100%';
+    const parsed=parseCard(data.text||'');
+    FIELDS.forEach(k=>{ if(parsed[k]!==undefined) $('#f_'+k).value=parsed[k]; });
+    st.textContent='อ่านเสร็จแล้ว — กรุณาตรวจสอบและแก้ไขข้อมูลด้านล่าง';
+    setTimeout(()=>{bar.style.display='none'},800);
+    $('#formCard').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(err){
+    console.error(err);
+    st.textContent='อ่านรูปไม่สำเร็จ ลองถ่ายใหม่ให้ชัดขึ้น หรือกรอกข้อมูลเอง';
+    bar.style.display='none';
+  }
+}
+
+/* ---------- Parse OCR text -> fields ---------- */
+function parseCard(raw){
+  const clean=raw.replace(/([\u0E00-\u0E7F])[ \t]+(?=[\u0E00-\u0E7F])/g,'$1'); // ตัดช่องว่างที่ OCR แทรกระหว่างตัวอักษรไทย
+  let lines=clean.split(/\r?\n/).map(s=>s.replace(/[|_•·]/g,' ').replace(/\s+/g,' ').trim()).filter(s=>s.length>1);
+  const out={name:'',title:'',company:'',phone:'',mobile:'',email:'',website:'',address:'',note:''};
+  const used=new Set();
+  const take=(i)=>used.add(i);
+
+  // email
+  lines.forEach((l,i)=>{ const m=l.match(/[A-Za-z0-9._%+\-]+\s?@\s?[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/); if(m&&!out.email){ out.email=m[0].replace(/\s/g,''); take(i);} });
+  // website
+  lines.forEach((l,i)=>{ if(used.has(i)) return; const m=l.match(/(https?:\/\/)?(www\.)[A-Za-z0-9\-.]+\.[A-Za-z]{2,}[^\s]*|(https?:\/\/)[^\s]+/i); if(m&&!out.website){ out.website=m[0]; take(i);} });
+  // phones
+  const phones=[],mobiles=[];
+  lines.forEach((l,i)=>{
+    if(used.has(i)||/fax|แฟกซ์|โทรสาร/i.test(l)&&!/tel|โทร\b|mobile|mob/i.test(l)) return;
+    const m=l.match(/(\+?\d[\d\s\-().]{6,}\d)/g); if(!m) return;
+    const digits=m.map(x=>x.trim()).filter(x=>x.replace(/\D/g,'').length>=8&&x.replace(/\D/g,'').length<=13);
+    if(!digits.length) return;
+    if(/postal|รหัสไปรษณีย์/i.test(l)) return;
+    digits.forEach(d=>{ const n=d.replace(/\D/g,''); (/^(\+?66|0)[689]/.test(n)||/mob|มือถือ|cell|m[:.]/i.test(l)?mobiles:phones).push(d); });
+    if(/(tel|mob|phone|โทร|มือถือ|mobile|cell|[tm][:.])/i.test(l)||digits.length) take(i);
+  });
+  out.phone=[...new Set(phones)].join(', '); out.mobile=[...new Set(mobiles)].join(', ');
+
+  // company
+  const coRe=/(co\.?,?\s*ltd|company|limited|บริษัท|บจก|หจก|จำกัด|corporation|corp\.?|inc\.?|group|holding|enterprise|industries|international)/i;
+  lines.forEach((l,i)=>{ if(!out.company&&!used.has(i)&&coRe.test(l)){ out.company=l; take(i);} });
+  // address
+  const adRe=/(ถนน|ซอย|แขวง|เขต|ตำบล|อำเภอ|จังหวัด|หมู่|ต\.|อ\.|จ\.|กรุงเทพ|\broad\b|\brd\.?|\bsoi\b|\bstreet\b|\bfloor\b|\bbuilding\b|\b\d{5}\b)/i;
+  const addr=[];
+  lines.forEach((l,i)=>{ if(!used.has(i)&&adRe.test(l)&&/\d/.test(l)){ addr.push(l); take(i);} });
+  out.address=addr.join(' ');
+  // title
+  const tiRe=/(manager|director|engineer|sales|executive|president|officer|supervisor|specialist|consultant|assistant|head|chief|ceo|cto|coo|cfo|vp|owner|founder|technician|ผู้จัดการ|ผู้อำนวยการ|วิศวกร|หัวหน้า|ฝ่าย|เจ้าหน้าที่|ที่ปรึกษา|กรรมการ|ผู้ช่วย|ช่าง|ประธาน)/i;
+  lines.forEach((l,i)=>{ if(!out.title&&!used.has(i)&&tiRe.test(l)&&l.length<70){ out.title=l; take(i);} });
+  // name
+  const nameRe=/^(คุณ|นาย|นางสาว|นาง|ดร\.?|ผศ\.?|รศ\.?|mr\.?|mrs\.?|ms\.?|dr\.?)/i;
+  let ni=lines.findIndex((l,i)=>!used.has(i)&&nameRe.test(l));
+  if(ni<0) ni=lines.findIndex((l,i)=>!used.has(i)&&!/\d/.test(l)&&l.split(' ').length<=4&&l.length<=40&&/[A-Za-z\u0E00-\u0E7F]{2,}/.test(l));
+  if(ni>=0){ out.name=lines[ni]; take(ni); }
+  // เหลือ -> หมายเหตุ (ให้ผู้ใช้ตัดสินเอง)
+  const rest=lines.filter((l,i)=>!used.has(i));
+  if(!out.company&&rest.length){ out.company=rest.shift(); }
+  out.note=rest.length?('OCR อื่นๆ: '+rest.join(' / ')):'';
+  return out;
+}
+
+/* ---------- Form ---------- */
+function resetForm(keepStatus){
+  FIELDS.forEach(k=>$('#f_'+k).value='');
+  state.ocrImg=state.saveImg=null;
+  if(!keepStatus){ $('#formCard').style.display='none'; $('#status').textContent=''; $('#bar').style.display='none'; }
+  $('#fileCam').value=''; $('#filePick').value='';
+}
+$('#btnReset').onclick=()=>resetForm(false);
+
+$('#btnSave').onclick=async()=>{
+  if(!configured()) return toast('ยังไม่ได้ตั้งค่า API_URL');
+  if(!store.get('cs_code')){ openSettings(); return toast('กรุณากรอกรหัสผ่านทีมก่อน'); }
+  const data={}; FIELDS.forEach(k=>data[k]=$('#f_'+k).value.trim());
+  if(!data.name&&!data.company&&!data.email) return toast('กรุณากรอกข้อมูลอย่างน้อย ชื่อ/บริษัท/อีเมล');
+  const btn=$('#btnSave'); btn.disabled=true; btn.textContent='กำลังบันทึก...';
+  try{
+    const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action:'add',passcode:store.get('cs_code'),scanner:store.get('cs_name'),data,
+        image:state.saveImg?state.saveImg.split(',')[1]:''})});
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error||'บันทึกไม่สำเร็จ');
+    toast('✅ บันทึกเรียบร้อย'); resetForm(false);
+  }catch(e){ toast('❌ '+e.message); }
+  finally{ btn.disabled=false; btn.textContent='💾 บันทึกลง Google Sheet'; }
+};
+
+/* ---------- List ---------- */
+async function loadList(){
+  const box=$('#list');
+  if(!configured()){ $('#cfgBanner').style.display='block'; return; }
+  if(!store.get('cs_code')){ openSettings(); return; }
+  box.innerHTML='<div class="empty">กำลังโหลด...</div>';
+  try{
+    const r=await fetch(API_URL+'?action=list&passcode='+encodeURIComponent(store.get('cs_code')));
+    const j=await r.json();
+    if(!j.ok) throw new Error(j.error);
+    state.rows=j.rows; state.sheetUrl=j.sheetUrl||''; renderList();
+  }catch(e){ box.innerHTML='<div class="empty">โหลดไม่สำเร็จ: '+esc(e.message)+'</div>'; }
+}
+function filtered(){
+  const q=$('#search').value.trim().toLowerCase();
+  return !q?state.rows:state.rows.filter(r=>Object.values(r).join(' ').toLowerCase().includes(q));
+}
+function renderList(){
+  const rows=filtered();
+  $('#count').textContent=`แสดง ${rows.length} จาก ${state.rows.length} รายการ`;
+  $('#list').innerHTML=rows.length?rows.map(r=>`
+    <div class="item">
+      <h3>${esc(r.name)||'(ไม่ระบุชื่อ)'}</h3>
+      <div class="co">${esc(r.company)}${r.title?' • '+esc(r.title):''}</div>
+      <div class="meta">
+        ${r.mobile?`<a href="tel:${esc(r.mobile.split(',')[0])}">📱 ${esc(r.mobile)}</a>`:''}
+        ${r.phone?`<a href="tel:${esc(r.phone.split(',')[0])}">☎️ ${esc(r.phone)}</a>`:''}
+        ${r.email?`<a href="mailto:${esc(r.email)}">✉️ ${esc(r.email)}</a>`:''}
+        ${r.website?`<span>🌐 ${esc(r.website)}</span>`:''}
+      </div>
+      ${r.address?`<div class="meta">📍 ${esc(r.address)}</div>`:''}
+      ${r.note?`<div class="meta">📝 ${esc(r.note)}</div>`:''}
+      <div class="row">
+        <span class="chip">${esc(r.date)}${r.scanner?' • '+esc(r.scanner):''}</span>
+        <span>
+          ${r.image?`<a class="btn ghost" style="padding:6px 10px;font-size:13px" href="${esc(r.image)}" target="_blank" rel="noopener">รูป</a>`:''}
+          <button class="btn danger" data-del="${esc(r.id)}">ลบ</button>
+        </span>
+      </div>
+    </div>`).join(''):'<div class="empty">ยังไม่มีข้อมูล</div>';
+  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>delRow(b.dataset.del));
+}
+$('#search').oninput=renderList;
+$('#btnRefresh').onclick=loadList;
+$('#btnSheet').onclick=()=>{ state.sheetUrl?window.open(state.sheetUrl,'_blank'):toast('กดรีเฟรชก่อน'); };
+
+async function delRow(id){
+  if(!confirm('ลบรายการนี้ออกจาก Google Sheet ถาวร?')) return;
+  try{
+    const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body:JSON.stringify({action:'delete',passcode:store.get('cs_code'),id})});
+    const j=await r.json(); if(!j.ok) throw new Error(j.error);
+    toast('ลบแล้ว'); loadList();
+  }catch(e){ toast('❌ '+e.message); }
+}
+
+/* ---------- Export Excel ---------- */
+$('#btnExport').onclick=()=>{
+  const rows=filtered();
+  if(!rows.length) return toast('ไม่มีข้อมูลให้ Export');
+  const head={id:'ID',date:'วันที่สแกน',name:'ชื่อ',company:'บริษัท',title:'ตำแหน่ง',phone:'เบอร์โทร',mobile:'มือถือ',
+    email:'อีเมล',website:'เว็บไซต์',address:'ที่อยู่',note:'หมายเหตุ',scanner:'ผู้สแกน',image:'รูปนามบัตร'};
+  const data=rows.map(r=>{ const o={}; Object.keys(head).forEach(k=>o[head[k]]=r[k]); return o; });
+  const ws=XLSX.utils.json_to_sheet(data);
+  ws['!cols']=Object.keys(head).map(()=>({wch:22}));
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Contacts');
+  const d=new Date(), p=n=>String(n).padStart(2,'0');
+  XLSX.writeFile(wb,`business-cards_${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}.xlsx`);
+};
+
+/* ---------- Init ---------- */
+if(!configured()) $('#cfgBanner').style.display='block';
+else if(!store.get('cs_code')) setTimeout(openSettings,400);
+</script>
+</body>
+</html>
