@@ -7,7 +7,6 @@
 <title>CardScan – สแกนนามบัตร</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 :root{
@@ -148,7 +147,7 @@ footer{text-align:center;color:var(--muted);font-size:12px;padding:20px}
   </section>
 </main>
 
-<footer>CardScan • OCR ทำงานในเบราว์เซอร์ของคุณ • ข้อมูลเก็บใน Google Drive ของเจ้าของระบบ</footer>
+<footer>CardScan • อ่านข้อความด้วย Google Drive OCR • ข้อมูลเก็บใน Google Drive ของเจ้าของระบบ</footer>
 
 <!-- SETTINGS -->
 <div class="modal" id="modal">
@@ -226,24 +225,35 @@ async function handleFile(file){
   const bar=$('#bar'), fill=$('#barFill'), st=$('#status');
   try{
     const im=await loadImg(file);
-    state.ocrImg=resize(im,1800,.92,true);
+    state.ocrImg=resize(im,1600,.85,false);
     state.saveImg=resize(im,1100,.7,false);
     $('#previewImg').src=state.saveImg;
     $('#formCard').style.display='block'; $('#preview').style.display='grid';
     bar.style.display='block'; fill.style.width='3%';
-    st.textContent='กำลังอ่านข้อความ... (ครั้งแรกอาจใช้เวลาโหลดภาษาไทย 10–30 วินาที)';
-    const { data } = await Tesseract.recognize(state.ocrImg,'tha+eng',{
-      logger:m=>{ if(m.status==='recognizing text') fill.style.width=(10+m.progress*90)+'%'; }
-    });
+    if(!configured()||!store.get('cs_code')){
+      bar.style.display='none';
+      st.textContent='กรุณากรอกรหัสผ่านทีมในหน้าตั้งค่า แล้วถ่ายรูปใหม่อีกครั้ง';
+      openSettings(); return;
+    }
+    st.textContent='กำลังอ่านข้อความด้วย Google OCR... (ประมาณ 5–15 วินาที)';
+    let p=10; const tick=setInterval(()=>{ p=Math.min(90,p+4); fill.style.width=p+'%'; },500);
+    let text='';
+    try{
+      const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+        body:JSON.stringify({action:'ocr',passcode:store.get('cs_code'),image:state.ocrImg.split(',')[1]})});
+      const j=await r.json();
+      if(!j.ok) throw new Error(j.error||'OCR ไม่สำเร็จ');
+      text=j.text||'';
+    } finally { clearInterval(tick); }
     fill.style.width='100%';
-    const parsed=parseCard(data.text||'');
+    const parsed=parseCard(text);
     FIELDS.forEach(k=>{ if(parsed[k]!==undefined) $('#f_'+k).value=parsed[k]; });
     st.textContent='อ่านเสร็จแล้ว — กรุณาตรวจสอบและแก้ไขข้อมูลด้านล่าง';
     setTimeout(()=>{bar.style.display='none'},800);
     $('#formCard').scrollIntoView({behavior:'smooth',block:'start'});
   }catch(err){
     console.error(err);
-    st.textContent='อ่านรูปไม่สำเร็จ ลองถ่ายใหม่ให้ชัดขึ้น หรือกรอกข้อมูลเอง';
+    st.textContent='อ่านรูปไม่สำเร็จ ('+(err.message||err)+') ลองถ่ายใหม่ให้ชัดขึ้น หรือกรอกข้อมูลเอง';
     bar.style.display='none';
   }
 }
